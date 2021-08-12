@@ -21,7 +21,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "PIL==1.1.6",
+        "Pillow<=8.3.1",
         # "pynvml",
         # "psutil",
         
