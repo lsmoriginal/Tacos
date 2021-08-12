@@ -1,3 +1,3 @@
-import .loggerWrap
-import .hashWrap
-import .pickleWrap
+from . import loggerWrap
+from . import hashWrap
+from . import pickleWrap
