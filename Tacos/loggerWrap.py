@@ -80,7 +80,7 @@ class SimplyLog():
                                             loggerName+'.log'))
             self.myLoggers[loggerName] = logger
             return logger
-        
+    '''
     def DEBUG(self, loggerName:str):
         self.__call__(loggerName).DEBUG
         
@@ -92,5 +92,5 @@ class SimplyLog():
         
     def CRITICAL(self, loggerName:str):
         self.__call__(loggerName).CRITICAL
-        
+    '''
         
