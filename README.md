@@ -8,6 +8,6 @@ But some other wrapper may require more imports, do your own testing and install
 To use this repo, run   
 `pip install git+https://github.com/lsmoriginal/Tacos.git`
 
-To update this module:
+To update this module:  
 `pip uninstall Tacos`  
 `pip install git+https://github.com/lsmoriginal/Tacos.git`
