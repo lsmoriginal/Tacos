@@ -22,7 +22,8 @@ setuptools.setup(
     ],
     install_requires=[
         "Pillow<=8.3.1",
-        "Pandas"
+        "Pandas",
+        "pytz",
         # "pynvml",
         # "psutil",
     ],
