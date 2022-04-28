@@ -1,3 +1,2 @@
-from . import loggerWrap
-from . import hashWrap
-from . import pickleWrap
+from writerWrap import writeYASON
+from readerWrap import readYASON
