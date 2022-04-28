@@ -1,5 +1,8 @@
 # Tacos
 
+This is a simple coolection of wrapper functions. Most of the functions should just work with default python libraries.   
+But some other wrapper may require more imports, do your own testing and installation when required.  
+
 ## Instructions 
 
 To use this repo, run   
