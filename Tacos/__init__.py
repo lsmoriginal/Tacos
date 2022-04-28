@@ -1,2 +1,2 @@
-from writerWrap import writeYASON
-from readerWrap import readYASON
+from .writerWrap import writeYASON
+from .readerWrap import readYASON
