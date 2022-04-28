@@ -1,9 +1,11 @@
 import hashlib
 
-def shash(anything, leng = None):
-
+def shash(anything, length:int = None):
+    """
+    quick and stupid way of hashing anything into len=length
+    """
     anything = str(anything)
     anything = anything.encode()
     anything = hashlib.md5(anything).hexdigest()
-    anything = anything[:leng]
+    anything = anything[:length]
     return anything
