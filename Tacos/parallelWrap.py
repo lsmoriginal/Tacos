@@ -1,46 +1,83 @@
+'''
+Using multi-processing modules to execute pd.apply action
+this can be replaced with PySpark if java dependencies is available on the machine
+'''
+
 from multiprocessing import Manager
+from black import err
 from tqdm import tqdm
 from multiprocessing import Pool
 from itertools import repeat
 from datetime import datetime
 now = datetime.now
-from os import cpu_count
+from os import cpu_count, getpid
 
+import pandas as pd
+from functools import singledispatch
+
+@singledispatch
 def intoChunks(lst, n):
     """Yield successive n chunks from lst."""
     steps = len(lst)//n
     for i in range(0, len(lst), steps):
         yield lst[i:i + steps]
+
+@intoChunks.register
+def _(dataFrame:pd.DataFrame, n):
+    assert 'MProwId' not in dataFrame.columns, 'rename MProwId'
+    assert 'MPchunkId' not in dataFrame.columns, 'rename MPchunkId'
+    
+    dataFrame['MProwId'] = pd.Series(range(len(dataFrame)),
+                                            index=dataFrame.index)
+    dataFrame['MPchunkId'] = pd.cut(dataFrame['MProwId'], bins = n)
+    dataFrame = dataFrame.groupby('MPchunkId')
+    dfList = list(item[1] for item in dataFrame)
+    return dfList 
+    
         
-def Process(TaskLogic,progressBar,
+def Process(TaskLogic,
+            progressBar,
             minInterval,
-            taskList, *args):
+            taskList,
+            taskArgs):
     # initialise the worker
     # provide all your settings here
     # including the config needed for 
     # aggregate task
-    task = TaskLogic(*args) 
-    
-    timeStart = now()
-    timeTaken = 0
-    taskFinished = 0
-    for each in taskList:
-        try:
-            results = task.workSingleTask(each)
-        except Exception:
-            results = None
-        task.results.append(results)
-        timeTaken = (now() - timeStart).seconds
-        taskFinished += 1
-        if timeTaken >= minInterval:
-            # do a report
+    errors = []
+    try:
+        task = TaskLogic(**taskArgs) 
+        progressBar.put(f'{getpid()} initiated')
+        
+        timeStart = now()
+        timeTaken = 0
+        taskFinished = 0
+        for each in taskList:
+            try:
+                results = task.workSingleTask(each)
+            except Exception as error:
+                if error not in errors:
+                    errors.append(str(error))
+                    progressBar.put(f'{getpid()} exception in Task -- {str(error)}')
+                results = None
+            task.results.append(results)
+            timeTaken = (now() - timeStart).seconds
+            taskFinished += 1
+            if timeTaken >= minInterval:
+                # do a report
+                progressBar.put(taskFinished)
+                taskFinished = 0
+                timeStart = now()
+        if taskFinished:
             progressBar.put(taskFinished)
-            taskFinished = 0
-            timeStart = now()
-    if taskFinished:
-        progressBar.put(taskFinished)
             
-    return task.aggregateAllTasks()
+        progressBar.put(f'{getpid()} completed')
+        return task.aggregateAllTasks()
+    
+    except Exception as error:
+        progressBar.put(f'{getpid()} Error: {error}')
+        progressBar.put(len(taskList))
+        return [(str(error), taskArgs), ]
 
         
 class ParallelWorker():
@@ -54,7 +91,7 @@ class ParallelWorker():
     def __init__(self,
                  taskLogic,
                  taskList,
-                 taskArgs=[],
+                 taskArgs=None,
                  processes:int = 2,
                  chunks:int = 8,
                  minInterval = 2) -> None:
@@ -64,7 +101,7 @@ class ParallelWorker():
         ----------
         taskLogic : [type]
             class implementing TaskLogic interface
-        taskList : [type]
+        taskList : [List, DataFrame]
             The whole list of tasks needed processing
         taskArgs : list, optional
             position arguments to initialise 
@@ -85,10 +122,12 @@ class ParallelWorker():
         assert processes <= cpu_count(), 'You dont have that many CPU'
         
         self.taskLogic = taskLogic
-        self.taskArgs = taskArgs
+        self.taskArgs = taskArgs if taskArgs else dict()
         self.taskCount = len(taskList)
+        
         self.taskLists = intoChunks(taskList,
                                     chunks)
+        
         self.minInterval = minInterval
         
         thisManager = Manager()
@@ -96,14 +135,13 @@ class ParallelWorker():
         self.pool = Pool(processes)
         
     def run(self):
-        
-        taskArgs = (repeat(arg) for arg in self.taskArgs)
+        # taskArgs = (repeat(arg) for arg in self.taskArgs)
         intputArgs = zip(
             repeat(self.taskLogic),
             repeat(self.progressBar),
             repeat(self.minInterval),
             self.taskLists,
-            *taskArgs
+            repeat(self.taskArgs)
         )
         result = self.pool.starmap_async(Process,
                                          intputArgs)
@@ -116,8 +154,12 @@ class ParallelWorker():
             # getting the updates from 
             # each sub-process to update the progress bar
             taskDone = self.progressBar.get()
-            taskProgress.update(taskDone)
-            allDone += taskDone
+            if isinstance(taskDone, (int, float)):
+                taskProgress.update(taskDone)
+                allDone += taskDone
+            else:
+                print(taskDone)
+                
         
         result = result.get()
         # print('--------Status--------')
@@ -142,7 +184,7 @@ class TaskLogic():
         pass
     
     def aggregateAllTasks(self):
-        pass    
+        return self.results    
 
 '''
 
@@ -155,7 +197,6 @@ class GenerateTextEmbeddings(TaskLogic):
         self.model = NLP_framework.loadModel(modelName)
         self.model.initialise(modelConfig)
         self.writeLocation = writeLocation
-        self.results = []
         
     def workSingleTask(self, oneTask:PosixPath):
         text = read(oneTask)
@@ -164,7 +205,8 @@ class GenerateTextEmbeddings(TaskLogic):
         embedding = embedding.mean(axis=0)
         writeEmbedding(embedding, self.writeLocation/oneTask.name)
         
-        return embedding
+        # order of result is preserved
+        return embedding # simply return the result to keep track
         
     def aggregateAllTasks(self):
         return np.array(self.results, dtype=float)
@@ -172,7 +214,7 @@ class GenerateTextEmbeddings(TaskLogic):
 listOf10000Documents = [...]
 process = ParallelWorker(GenerateTextEmbeddings,
                listOf10000Documents,
-                ['BERT', {config}, '../results/bert'],
+                # ['BERT', {config}, '../results/bert'], -> dict instead
                 processes = 8,
                 chunks = 7,
                 minInterval = 2)
@@ -196,16 +238,14 @@ class StringEachNumber(TaskLogic):
             result = str(task)
         return result
     
-    def aggregateAllTasks(self):
-        return self.results
         
 if __name__ == '__main__':
     # another simple example
     
     task = list(range(100))
-    process = ParallelWorker(StringEachNumber,
-                             task,
-                             [5,],
+    process = ParallelWorker(taskLogic = StringEachNumber,
+                             taskList= task,
+                             taskArgs=dict(exception = 5),
                              processes = 2,
                              chunks = 2,
                              minInterval = 2)
