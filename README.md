@@ -9,5 +9,5 @@ To use this repo, run
 `pip install git+https://github.com/lsmoriginal/Tacos.git`
 
 To update this module:
-`pip uninstall git+https://github.com/lsmoriginal/Tacos.git`  
+`pip uninstall Tacos`  
 `pip install git+https://github.com/lsmoriginal/Tacos.git`
