@@ -21,7 +21,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "Pillow<=8.3.1",
+        "Pillow",
         "Pandas",
         "pytz",
         "pyyaml",
